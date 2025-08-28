@@ -1,0 +1,13 @@
+{
+  "name": "times-set-helper",
+  "version": "1.0.0",
+  "description": "Chrome extension to automate time entry logging",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "build": "echo 'No build required - unpacked extension'",
+    "test-tempo": "node js/api/tempo-example.js"
+  },
+  "author": "",
+  "license": "MIT"
+}

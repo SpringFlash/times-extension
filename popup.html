@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Times Set Helper</title>
+    <meta charset="UTF-8" />
+    <link rel="stylesheet" href="css/popup.css" />
+  </head>
+  <body>
+    <div class="container">
+      <h1>Times Set Helper</h1>
+
+      <div id="tasksContainer">
+        <!-- Tasks will be added here dynamically -->
+      </div>
+
+      <div class="actions">
+        <button id="startFilling">Fill via API</button>
+        <button id="clearAll">Clear All Data</button>
+      </div>
+
+      <div id="jiraActions" class="jira-actions" style="display: none">
+        <button id="linkToRedmine">Link To Redmine</button>
+      </div>
+
+      <div class="options-link">
+        <button id="openOptions">Manage Entries</button>
+      </div>
+    </div>
+    <script type="module" src="js/ui/popup.js"></script>
+  </body>
+</html>

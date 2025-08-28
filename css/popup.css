@@ -1,0 +1,477 @@
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+  margin: 0;
+  padding: 0;
+  min-width: 350px;
+  background-color: #f5f5f5;
+}
+
+.container {
+  padding: 20px;
+}
+
+h1 {
+  color: #333;
+  font-size: 18px;
+  margin-top: 0;
+  margin-bottom: 20px;
+  text-align: center;
+}
+
+button {
+  background-color: #4285f4;
+  color: white;
+  border: none;
+  padding: 10px 15px;
+  cursor: pointer;
+  border-radius: 4px;
+  font-size: 14px;
+  font-weight: 500;
+  transition: background-color 0.2s;
+}
+
+button:hover {
+  background-color: #3367d6;
+}
+
+.actions {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 15px;
+}
+
+.actions button {
+  flex: 1;
+  font-size: 14px;
+  padding: 12px 8px;
+}
+
+#startFilling {
+  background-color: #4285f4;
+}
+
+#startFilling:hover {
+  background-color: #3367d6;
+}
+
+#clearAll {
+  background-color: #db4437;
+}
+
+#clearAll:hover {
+  background-color: #c53929;
+}
+
+#tasksContainer {
+  max-height: 300px;
+  overflow-y: auto;
+  margin-bottom: 20px;
+}
+
+.task-item {
+  background-color: #fff;
+  border-radius: 4px;
+  padding: 10px;
+  margin-bottom: 8px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.task-info {
+  flex: 1;
+}
+
+.task-date {
+  font-weight: bold;
+  color: #333;
+  display: flex;
+  align-items: center;
+}
+
+.task-date .weekday {
+  color: #666;
+  font-size: 0.9em;
+  margin-left: 5px;
+}
+
+.task-details {
+  margin-top: 5px;
+  color: #666;
+  font-size: 13px;
+}
+
+.task-actions {
+  display: flex;
+  gap: 5px;
+}
+
+.task-actions button {
+  width: 24px;
+  height: 24px;
+  font-size: 14px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+}
+
+.btn-edit {
+  background-color: #fbbc05;
+}
+
+.btn-edit:hover {
+  background-color: #f09300;
+}
+
+.btn-duplicate {
+  background-color: #34a853;
+}
+
+.btn-duplicate:hover {
+  background-color: #2d9044;
+}
+
+.btn-delete {
+  background-color: #db4437;
+}
+
+.btn-delete:hover {
+  background-color: #c53929;
+}
+
+.no-tasks {
+  text-align: center;
+  color: #666;
+  padding: 15px;
+  font-style: italic;
+}
+
+.jira-actions {
+  margin-bottom: 15px;
+  text-align: center;
+}
+
+.jira-actions button {
+  background-color: #0052cc; /* Jira blue */
+  width: 100%;
+  font-weight: 600;
+}
+
+.jira-actions button:hover {
+  background-color: #0747a6;
+}
+
+.linked-status {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  background-color: #e8f5e8;
+  border: 1px solid #4caf50;
+  border-radius: 4px;
+  margin-bottom: 15px;
+  gap: 15px;
+}
+
+.linked-text {
+  color: #2e7d32;
+  font-weight: 500;
+  font-size: 14px;
+}
+
+button.unlink-btn {
+  background-color: #f44336;
+  color: white;
+  border: none;
+  padding: 4px 8px;
+  border-radius: 3px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+  width: 60%;
+}
+
+button.unlink-btn:hover {
+  background-color: #d32f2f;
+}
+
+.options-link {
+  margin-top: 15px;
+  text-align: center;
+}
+
+.options-link button {
+  background-color: #757575; /* Grey background */
+  width: 100%;
+}
+
+.options-link button:hover {
+  background-color: #616161;
+}
+
+/* Jira Task Info Styles */
+.jira-task-info {
+  background-color: #fff;
+  border: 2px solid #0052cc;
+  border-radius: 8px;
+  padding: 15px;
+  margin-bottom: 20px;
+}
+
+.task-header {
+  border-bottom: 1px solid #e0e0e0;
+  padding-bottom: 10px;
+  margin-bottom: 15px;
+}
+
+.task-header h3 {
+  margin: 0;
+  color: #0052cc;
+  font-size: 16px;
+}
+
+.task-details {
+  margin-bottom: 15px;
+}
+
+.task-id {
+  font-weight: bold;
+  color: #333;
+  font-size: 14px;
+}
+
+.task-title {
+  color: #666;
+  font-size: 13px;
+  margin-top: 5px;
+}
+
+.redmine-links {
+  border-top: 1px solid #e0e0e0;
+  padding-top: 10px;
+}
+
+.loading {
+  color: #666;
+  font-style: italic;
+  text-align: center;
+  padding: 10px;
+}
+
+.no-links {
+  color: #999;
+  font-style: italic;
+  text-align: center;
+  padding: 10px;
+}
+
+.links-found h4 {
+  margin: 0 0 10px 0;
+  color: #4caf50;
+  font-size: 14px;
+}
+
+.redmine-link {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 10px;
+  background-color: #f8f9fa;
+  border-radius: 4px;
+  margin-bottom: 5px;
+}
+
+.issue-id {
+  font-weight: bold;
+  color: #d73a49;
+}
+
+.link-btn {
+  background-color: #28a745;
+  color: white;
+  border: none;
+  padding: 4px 8px;
+  border-radius: 3px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.link-btn:hover {
+  background-color: #218838;
+}
+
+/* Recent Entries Styles */
+.recent-entries h3 {
+  margin: 0 0 15px 0;
+  color: #333;
+  font-size: 16px;
+}
+
+.entry-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 10px;
+  background-color: #f8f9fa;
+  border-radius: 4px;
+  margin-bottom: 5px;
+  font-size: 13px;
+}
+
+.entry-date {
+  font-weight: bold;
+  color: #666;
+  min-width: 80px;
+}
+
+.entry-task {
+  flex: 1;
+  margin: 0 10px;
+  color: #333;
+}
+
+.entry-time {
+  font-weight: bold;
+  color: #4285f4;
+}
+
+.more-entries {
+  text-align: center;
+  color: #666;
+  font-style: italic;
+  padding: 10px;
+  background-color: #f0f0f0;
+  border-radius: 4px;
+  margin-top: 5px;
+}
+
+.no-entries {
+  text-align: center;
+  color: #666;
+  padding: 20px;
+  background-color: #f8f9fa;
+  border-radius: 4px;
+}
+
+.no-entries p {
+  margin: 10px 0;
+}
+
+.error {
+  color: #d73a49;
+  text-align: center;
+  padding: 15px;
+  background-color: #ffeaea;
+  border-radius: 4px;
+}
+
+/* Notification Styles */
+.popup-notification {
+  position: fixed;
+  top: 10px;
+  right: 10px;
+  padding: 12px 16px;
+  border-radius: 4px;
+  font-size: 14px;
+  font-weight: 500;
+  max-width: 300px;
+  z-index: 10000;
+  transform: translateX(100%);
+  transition: transform 0.3s ease;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.popup-notification.show {
+  transform: translateX(0);
+}
+
+.notification-success {
+  background-color: #d4edda;
+  color: #155724;
+  border: 1px solid #c3e6cb;
+}
+
+.notification-error {
+  background-color: #f8d7da;
+  color: #721c24;
+  border: 1px solid #f5c6cb;
+}
+
+.notification-warning {
+  background-color: #fff3cd;
+  color: #856404;
+  border: 1px solid #ffeaa7;
+}
+
+.notification-info {
+  background-color: #d1ecf1;
+  color: #0c5460;
+  border: 1px solid #bee5eb;
+}
+
+/* Redmine Tasks Styles */
+.redmine-tasks {
+  border-top: 1px solid #e0e0e0;
+  padding-top: 10px;
+}
+
+.no-tasks {
+  color: #999;
+  font-style: italic;
+  text-align: center;
+  padding: 10px;
+}
+
+.tasks-found h4 {
+  margin: 0 0 10px 0;
+  color: #4caf50;
+  font-size: 14px;
+}
+
+.redmine-task {
+  padding: 8px 10px;
+  background-color: #f8f9fa;
+  border-radius: 4px;
+  margin-bottom: 5px;
+}
+
+.task-info {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.task-id {
+  font-weight: bold;
+  color: #d73a49;
+  min-width: 50px;
+}
+
+.task-subject {
+  flex: 1;
+  color: #333;
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.task-btn {
+  background-color: #007bff;
+  color: white;
+  border: none;
+  padding: 4px 8px;
+  border-radius: 3px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.task-btn:hover {
+  background-color: #0056b3;
+}

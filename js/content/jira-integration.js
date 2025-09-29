@@ -1,14 +1,34 @@
-/**
- * Jira Content Script - автоматический поиск связанных Redmine задач
- */
+const SELECTORS = {
+  // Селекторы для ожидания загрузки страницы
+  WAIT_CONTENT: [
+    '[data-testid="issue-view-product-templates-default.ui.foundation-content.foundation-content-wrapper"]',
+    ".webkit.chrome",
+  ],
+
+  // Селектор для заголовка задачи
+  TITLE: '[data-testid="issue.views.issue-base.foundation.summary.heading"]',
+
+  // Селектор для приоритета
+  PRIORITY:
+    '[data-testid="issue-field-priority-readview-full.ui.priority.wrapper"]',
+
+  // Селектор для статуса
+  STATUS:
+    '[data-testid="issue-field-status.ui.status-view.status-button.status-button"]',
+
+  // Селектор для точки вставки UI
+  INSERTION_POINT:
+    '[data-testid="issue-view-product-templates-default.ui.foundation-content.foundation-content-wrapper"]',
+};
 
 class JiraIntegration {
-  constructor() {
+  constructor(isBoardPage) {
     this.currentTaskId = null;
     this.currentTaskUrl = null;
     this.redmineSettings = null;
     this.linkedTask = null;
     this.uiContainer = null;
+    this.isBoardPage = isBoardPage;
 
     this.init();
   }
@@ -19,7 +39,6 @@ class JiraIntegration {
   async init() {
     console.log("🎫 Jira Integration: Initializing...");
 
-    // Ждем полной загрузки страницы
     if (document.readyState === "loading") {
       document.addEventListener("DOMContentLoaded", () => this.start());
     } else {
@@ -32,7 +51,12 @@ class JiraIntegration {
    */
   async start() {
     try {
-      // Извлекаем информацию о текущей задаче
+      const waitContent = SELECTORS.WAIT_CONTENT.map((selector) =>
+        waitElement(selector)
+      );
+
+      await Promise.all(waitContent);
+
       this.extractTaskInfo();
 
       if (!this.currentTaskId) {
@@ -42,23 +66,15 @@ class JiraIntegration {
 
       console.log(`🎫 Jira Integration: Found task ${this.currentTaskId}`);
 
-      // Получаем настройки Redmine и Jira
       await this.loadRedmineSettings();
       await this.loadJiraSettings();
 
-      if (
-        !this.redmineSettings ||
-        !this.redmineSettings.url ||
-        !this.redmineSettings.apiKey
-      ) {
+      if (!this.redmineSettings?.url || !this.redmineSettings?.apiKey) {
         console.log("🎫 Jira Integration: Redmine not configured");
         return;
       }
 
-      // Ищем связанную задачу
       await this.searchLinkedTask();
-
-      // Создаем UI
       this.createUI();
     } catch (error) {
       console.error("🎫 Jira Integration Error:", error);
@@ -69,13 +85,15 @@ class JiraIntegration {
    * Извлечение информации о задаче из URL и страницы
    */
   extractTaskInfo() {
-    // Извлекаем ID задачи из URL
-    const urlMatch = window.location.href.match(/\/browse\/([A-Z]+-\d+)/);
+    let urlMatch;
+    if (this.isBoardPage) {
+      urlMatch = window.location.href.match(/selectedIssue=([A-Z]+-\d+)/);
+    } else {
+      urlMatch = window.location.href.match(/\/browse\/([A-Z]+-\d+)/);
+    }
+
     if (urlMatch) {
       this.currentTaskId = urlMatch[1];
-      this.currentTaskUrl = window.location.href;
-
-      // Извлекаем дополнительную информацию о задаче
       this.extractJiraTaskDetails();
     }
   }
@@ -85,63 +103,29 @@ class JiraIntegration {
    */
   extractJiraTaskDetails() {
     try {
-      // Извлекаем заголовок
-      const titleSelectors = [
-        '[data-testid="issue.views.issue-base.foundation.summary.heading"]',
-        'h1[data-testid*="summary"]',
-        ".issue-header h1",
-        "#summary-val",
-        ".issue-title",
-      ];
+      const titleElement = document.querySelector(SELECTORS.TITLE);
+      const title = titleElement ? titleElement.textContent?.trim() || "" : "";
 
-      let title = "";
-      for (const selector of titleSelectors) {
-        const element = document.querySelector(selector);
-        if (element) {
-          title = element.textContent?.trim() || "";
-          break;
-        }
-      }
+      const priorityElement = document.querySelector(SELECTORS.PRIORITY);
+      const priority = priorityElement
+        ? priorityElement.textContent?.trim() || ""
+        : "";
 
-      // Извлекаем приоритет/сложность
-      const prioritySelectors = [
-        '[data-testid="issue.views.field.priority.common.ui.priority-field-view"]',
-        ".priority .value",
-        '[data-field-id="priority"]',
-      ];
+      const statusElement = document.querySelector(SELECTORS.STATUS);
+      const status = statusElement
+        ? statusElement.textContent?.trim() || ""
+        : "";
 
-      let priority = "";
-      for (const selector of prioritySelectors) {
-        const element = document.querySelector(selector);
-        if (element) {
-          priority = element.textContent?.trim() || "";
-          break;
-        }
-      }
+      const url = `${window.location.origin}/browse/${this.currentTaskId}`;
 
-      // Извлекаем статус
-      const statusSelectors = [
-        '[data-testid="issue.views.field.status.common.ui.status-lozenge"]',
-        ".status .value",
-        '[data-field-id="status"]',
-      ];
-
-      let status = "";
-      for (const selector of statusSelectors) {
-        const element = document.querySelector(selector);
-        if (element) {
-          status = element.textContent?.trim() || "";
-          break;
-        }
-      }
-
-      // Сохраняем извлеченные данные
       this.jiraTaskDetails = {
         title: title || this.currentTaskId,
         priority: priority,
         status: status,
-        url: this.currentTaskUrl,
+        url: url,
       };
+
+      this.currentTaskUrl = url;
 
       console.log("🎫 Extracted Jira task details:", this.jiraTaskDetails);
     } catch (error) {
@@ -150,7 +134,7 @@ class JiraIntegration {
         title: this.currentTaskId,
         priority: "",
         status: "",
-        url: this.currentTaskUrl,
+        url: `${window.location.origin}/browse/${this.currentTaskId}`,
       };
     }
   }
@@ -180,68 +164,142 @@ class JiraIntegration {
   }
 
   /**
+   * Получение связанного проекта Redmine для текущего URL JIRA
+   */
+  async getLinkedProject() {
+    try {
+      const currentUrl = window.location.origin;
+
+      // Получаем маппинги из storage
+      const result = await chrome.storage.local.get("jira_project_mappings");
+      const mappings = result.jira_project_mappings || [];
+
+      // Ищем подходящий маппинг
+      const normalizedUrl = currentUrl.toLowerCase().replace(/\/$/, "");
+      const mapping = mappings.find((m) => {
+        const mappingUrl = m.jiraUrl.toLowerCase().replace(/\/$/, "");
+        return (
+          normalizedUrl.includes(mappingUrl) ||
+          mappingUrl.includes(normalizedUrl)
+        );
+      });
+
+      // Возвращаем найденный проект или дефолтный
+      return mapping
+        ? mapping.redmineProjectId
+        : this.jiraSettings?.defaultProject || null;
+    } catch (error) {
+      console.error("Error getting linked project:", error);
+      return this.jiraSettings?.defaultProject || null;
+    }
+  }
+
+  /**
    * Создание UI элементов на странице
    */
   createUI() {
-    // Удаляем существующий UI если есть
     this.removeExistingUI();
 
-    // Создаем минималистичную плашку
     this.uiContainer = document.createElement("div");
     this.uiContainer.id = "redmine-integration-badge";
     this.uiContainer.className = "redmine-badge";
 
+    const badgeContent = document.createElement("div");
+    badgeContent.className = "redmine-badge-content";
+
+    const badgeIcon = document.createElement("span");
+    badgeIcon.className = "badge-icon";
+    badgeIcon.innerHTML = "🔗";
+    badgeContent.appendChild(badgeIcon);
+
+    const badgeText = document.createElement("span");
+    badgeText.className = "badge-text";
+
     if (this.linkedTask) {
-      // Найдена связанная задача
-      this.uiContainer.innerHTML = `
-        <div class="redmine-badge-content found" data-task-id="${this.linkedTask.id}">
-          <span class="badge-icon">🔗</span>
-          <span class="badge-text">
-            <strong>Redmine #${this.linkedTask.id}</strong>
-            <small>${this.linkedTask.subject}</small>
-          </span>
-        </div>
+      badgeContent.className = "redmine-badge-content found";
+      badgeContent.dataset.taskId = this.linkedTask.id;
+      badgeText.innerHTML = `
+        <strong>Redmine #${this.linkedTask.id}</strong>
+        <small>${this.linkedTask.subject}</small>
       `;
 
-      // Добавляем обработчик клика
-      this.uiContainer.addEventListener("click", () => {
+      badgeContent.addEventListener("click", () => {
         const url = `${this.redmineSettings.url}/issues/${this.linkedTask.id}`;
         window.open(url, "_blank");
       });
     } else {
-      // Задача не найдена
-      this.uiContainer.innerHTML = `
-        <div class="redmine-badge-content not-found">
-          <span class="badge-icon">➕</span>
-          <span class="badge-text">
-            <strong>Create Redmine Task</strong>
-            <small>No linked task found</small>
-          </span>
-        </div>
+      badgeContent.className = "redmine-badge-content not-found";
+      badgeContent.dataset.taskId = this.currentTaskId;
+      badgeText.innerHTML = `
+        <strong>Create Redmine Task</strong>
+        <small>No linked task found</small>
       `;
 
-      // Добавляем обработчик для создания новой задачи
-      this.uiContainer.addEventListener("click", () => {
+      badgeContent.addEventListener("click", () => {
         this.createRedmineTask();
       });
     }
 
-    setTimeout(() => {
-      // Ищем подходящее место для вставки UI
-      const targetContainer = this.findInsertionPoint();
+    badgeContent.appendChild(badgeText);
+    this.uiContainer.appendChild(badgeContent);
 
-      if (!targetContainer) {
-        console.warn("🎫 Jira Integration: Could not find insertion point");
-        return;
-      }
+    const branchButton = document.createElement("button");
+    branchButton.className = "action-button branch-button";
+    branchButton.title = "Copy branch name";
+    loadSVGIcon(branchButton, "branch");
+    branchButton.addEventListener("click", (e) => {
+      e.stopPropagation();
+      this.copyBranchName();
+    });
 
-      console.log("🎫 Jira Integration: DOM loaded");
-      targetContainer.insertBefore(
-        this.uiContainer,
-        targetContainer.firstChild
+    const commitButton = document.createElement("button");
+    commitButton.className = "action-button commit-button";
+    commitButton.title = "Copy commit message";
+    loadSVGIcon(commitButton, "commit");
+    commitButton.addEventListener("click", (e) => {
+      e.stopPropagation();
+      this.copyCommitMessage();
+    });
+
+    const mrReportButton = document.createElement("button");
+    mrReportButton.className = "action-button mr-report-button";
+    mrReportButton.title = "Copy MR report";
+    loadSVGIcon(mrReportButton, "mr-report");
+    mrReportButton.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const mrReport = `:merged: @oleg.bikovskih MR для [${this.currentTaskId}](${this.currentTaskUrl})\n:merged: `;
+      copyToClipboard(
+        mrReport,
+        `📋 MR report copied: ${mrReport}`,
+        "❌ Failed to copy MR report"
       );
-    }, 7000);
+    });
 
+    const actionButtons = document.createElement("div");
+    actionButtons.className = "action-buttons";
+
+    const columnButtons = document.createElement("div");
+    columnButtons.className = "column-buttons";
+
+    columnButtons.appendChild(branchButton);
+    columnButtons.appendChild(mrReportButton);
+
+    actionButtons.appendChild(columnButtons);
+    actionButtons.appendChild(commitButton);
+
+    this.uiContainer.appendChild(actionButtons);
+
+    const targetContainer = this.findInsertionPoint();
+
+    if (!targetContainer) {
+      console.warn("🎫 Jira Integration: Could not find insertion point");
+      return;
+    }
+
+    targetContainer.parentElement.insertBefore(
+      this.uiContainer,
+      targetContainer
+    );
     console.log("🎫 Jira Integration: Badge created and inserted");
   }
 
@@ -261,39 +319,8 @@ class JiraIntegration {
    */
   findInsertionPoint() {
     // Ищем заголовок задачи для размещения рядом
-    const titleSelectors = [
-      '[data-testid="issue-view-product-templates-default.ui.foundation-content.foundation-content-wrapper"]',
-      'h1[data-testid*="summary"]',
-      ".issue-header h1",
-      "#summary-val",
-      ".issue-title",
-    ];
-
-    for (const selector of titleSelectors) {
-      const element = document.querySelector(selector);
-      if (element) {
-        return element.parentElement || element;
-      }
-    }
-
-    // Fallback - ищем любой заголовок или контейнер
-    const fallbackSelectors = [
-      ".issue-header-content",
-      ".issue-body-content",
-      ".aui-page-panel-content",
-      "#issue-content",
-      ".issue-main-column",
-    ];
-
-    for (const selector of fallbackSelectors) {
-      const element = document.querySelector(selector);
-      if (element) {
-        return element;
-      }
-    }
-
-    // Последний fallback - вставляем в body
-    return document.body;
+    const element = document.querySelector(SELECTORS.INSERTION_POINT);
+    return element || document.body.firstChild;
   }
 
   /**
@@ -356,7 +383,7 @@ class JiraIntegration {
       badge.style.pointerEvents = "none";
 
       // Подготавливаем данные для создания задачи
-      const taskData = this.prepareRedmineTaskData();
+      const taskData = await this.prepareRedmineTaskData();
 
       console.log("🎫 Jira Integration: Task data:", taskData);
 
@@ -369,8 +396,9 @@ class JiraIntegration {
       if (result.success) {
         // Обновляем UI для показа созданной задачи
         this.linkedTask = result.issue;
-        this.updateBadgeToFound();
-        this.showNotification(
+        this.createUI();
+
+        showNotification(
           `✅ Created Redmine task #${result.issue.id}`,
           "success"
         );
@@ -378,14 +406,11 @@ class JiraIntegration {
         // Восстанавливаем исходное состояние при ошибке
         badge.innerHTML = originalContent;
         badge.style.pointerEvents = "auto";
-        this.showNotification(
-          `❌ Failed to create task: ${result.error}`,
-          "error"
-        );
+        showNotification(`❌ Failed to create task: ${result.error}`, "error");
       }
     } catch (error) {
       console.error("Error creating Redmine task:", error);
-      this.showNotification(`❌ Error: ${error.message}`, "error");
+      showNotification(`❌ Error: ${error.message}`, "error");
 
       // Восстанавливаем исходное состояние
       const badge = this.uiContainer.querySelector(".redmine-badge-content");
@@ -403,68 +428,66 @@ class JiraIntegration {
   /**
    * Подготовка данных для создания Redmine задачи
    */
-  prepareRedmineTaskData() {
+  async prepareRedmineTaskData() {
     const description = this.currentTaskUrl;
+    const linkedProject = await this.getLinkedProject();
 
     return {
-      subject: this.jiraTaskDetails.title,
+      subject: `${this.currentTaskId}: ${this.jiraTaskDetails.title}`,
       description: description,
-      projectId:
-        this.jiraSettings?.linkedProject ||
-        this.redmineSettings.defaultProject ||
-        "1", // Используем проект по умолчанию как строку
+      projectId: linkedProject || this.redmineSettings.defaultProject || "1", // Используем проект по умолчанию как строку
       jiraPriority: this.jiraTaskDetails.priority, // Отправляем оригинальный приоритет для маппинга в redmine.js
       jiraStatus: this.jiraTaskDetails.status, // Добавляем статус для будущего маппинга
     };
   }
 
   /**
-   * Обновление плашки после создания задачи
+   * Копирование названия ветки в буфер обмена
    */
-  updateBadgeToFound() {
-    const badge = this.uiContainer.querySelector(".redmine-badge-content");
-    badge.className = "redmine-badge-content found";
-    badge.innerHTML = `
-      <span class="badge-icon">🔗</span>
-      <span class="badge-text">
-        <strong>Redmine #${this.linkedTask.id}</strong>
-        <small>${this.linkedTask.subject}</small>
-      </span>
-    `;
-    badge.style.pointerEvents = "auto";
-
-    // Обновляем обработчик клика
-    this.uiContainer.removeEventListener("click", this.createRedmineTask);
-    this.uiContainer.addEventListener("click", () => {
-      const url = `${this.redmineSettings.url}/issues/${this.linkedTask.id}`;
-      window.open(url, "_blank");
-    });
+  async copyBranchName() {
+    const branchName = this.currentTaskId;
+    await copyToClipboard(
+      branchName,
+      `📋 Branch name copied: ${branchName}`,
+      "❌ Failed to copy branch name"
+    );
   }
 
   /**
-   * Показать уведомление на странице
+   * Копирование сообщения коммита в буфер обмена
    */
-  showNotification(message, type = "info") {
-    const notification = document.createElement("div");
-    notification.className = `jira-notification notification-${type}`;
-    notification.textContent = message;
+  async copyCommitMessage() {
+    const commitMessage = `${this.currentTaskId} ${this.jiraTaskDetails?.title}`;
+    await copyToClipboard(
+      commitMessage,
+      `📋 Commit message copied: ${commitMessage}`,
+      "❌ Failed to copy commit message"
+    );
+  }
 
-    document.body.appendChild(notification);
+  /**
+   * Очистка ресурсов и удаление UI элементов
+   */
+  cleanup() {
+    console.log("🎫 Jira Integration: Cleaning up...");
 
-    // Анимация появления
-    setTimeout(() => notification.classList.add("show"), 10);
+    // Удаляем UI элементы
+    this.removeExistingUI();
 
-    // Удаление через 3 секунды
-    setTimeout(() => {
-      notification.classList.remove("show");
-      setTimeout(() => {
-        if (notification.parentNode) {
-          document.body.removeChild(notification);
-        }
-      }, 300);
-    }, 3000);
+    // Очищаем данные
+    this.currentTaskId = null;
+    this.currentTaskUrl = null;
+    this.linkedTask = null;
+    this.jiraTaskDetails = null;
+    this.uiContainer = null;
+
+    console.log("🎫 Jira Integration: Cleanup completed");
   }
 }
 
-// Инициализация при загрузке страницы
-new JiraIntegration();
+const isBoardPage = () => window.location.pathname.includes("jira/software");
+const initJiraIntegration = () => new JiraIntegration(isBoardPage());
+
+watchURL(initJiraIntegration, () =>
+  isBoardPage() ? /selectedIssue=([A-Z]+-\d+)/ : /\/browse\/([A-Z]+-\d+)/
+);

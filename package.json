@@ -6,7 +6,11 @@
   "private": true,
   "scripts": {
     "build": "echo 'No build required - unpacked extension'",
-    "test-tempo": "node js/api/tempo-example.js"
+    "test-tempo": "node js/api/tempo-example.js",
+    "test-comparison": "node js/utils/test-comparison.js",
+    "test-pagination": "node js/api/test-pagination.js",
+    "test-jira": "node js/api/jira-rest-example.js",
+    "test-enhanced": "node js/utils/test-enhanced-comparison.js"
   },
   "author": "",
   "license": "MIT"

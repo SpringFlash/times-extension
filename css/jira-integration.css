@@ -1,8 +1,10 @@
 /* Jira Integration Content Script Styles - Minimal Badge */
 
 .redmine-badge {
-  display: inline-block;
-  margin: 10px 0;
+  display: flex;
+  height: 54px;
+  align-items: flex-start;
+  gap: 8px;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   position: relative;
   z-index: 1000;
@@ -11,6 +13,7 @@
 .redmine-badge-content {
   display: flex;
   align-items: center;
+  height: 34px;
   gap: 10px;
   padding: 8px 12px;
   border-radius: 6px;
@@ -103,4 +106,69 @@
 
 .jira-notification.notification-info {
   background: #5bc0de;
+}
+
+/* Action buttons styles */
+.action-buttons {
+  display: flex;
+  gap: 5px;
+}
+
+.column-buttons {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  height: 100%;
+  
+}
+
+.action-button {
+  width: 25px;
+  min-height: 25px;
+  height: 100%;
+  max-height: 100%;
+  border: 2px solid #ddd;
+  border-radius: 6px;
+  background: white;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+  padding: 0;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  flex: 1;
+}
+
+.action-button:hover {
+  border-color: #0052cc;
+  background: #f4f5f7;
+  box-shadow: 0 2px 6px rgba(0, 82, 204, 0.2);
+}
+
+.action-button svg {
+  color: #666;
+  transition: color 0.2s ease;
+}
+
+.action-button:hover svg {
+  color: #0052cc;
+}
+
+.action-button.branch-button:hover {
+  border-color: #169f39;
+  box-shadow: 0 2px 6px rgba(22, 159, 57, 0.2);
+}
+
+.action-button.branch-button:hover svg {
+  color: #169f39;
+}
+
+.action-button.commit-button:hover {
+  border-color: #e14329;
+  box-shadow: 0 2px 6px rgba(225, 67, 41, 0.2);
+}
+
+.action-button.commit-button:hover svg {
+  color: #e14329;
 }

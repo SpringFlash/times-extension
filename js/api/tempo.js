@@ -1,5 +1,9 @@
 import { CONFIG } from "../utils/constants.js";
+import JiraRestAPI from "./jira-rest.js";
+
 import { sanitizeUrl, isValidApiResponse } from "../utils/validation.js";
+
+const ANONYMOUS_ID = "__tempo-io__unknown_user";
 
 /**
  * Base Tempo API request
@@ -83,29 +87,74 @@ export async function getCurrentUser(settings) {
 }
 
 /**
- * Get worklogs for a specific date range
+ * Get worklogs for a specific date range with pagination
  * @param {string} dateFrom - Start date (YYYY-MM-DD)
  * @param {string} dateTo - End date (YYYY-MM-DD)
  * @param {Object} settings - Tempo settings
  * @param {string} worker - Optional worker account ID
- * @returns {Promise<Object>} Promise that resolves with worklogs
+ * @param {number} limit - Optional limit per request (default: 1000)
+ * @returns {Promise<Object>} Promise that resolves with all worklogs
  */
-export async function getWorklogs(dateFrom, dateTo, settings, worker = null) {
+export async function getWorklogs(
+  dateFrom,
+  dateTo,
+  settings,
+  worker = null,
+  limit = CONFIG.TEMPO.PAGINATION_LIMIT
+) {
   try {
-    let url = `https://api.tempo.io/4/worklogs?from=${dateFrom}&to=${dateTo}`;
+    let allWorklogs = [];
+    let offset = 0;
+    let hasMore = true;
+    let totalCount = 0;
 
-    if (worker) {
-      url += `&worker=${worker}`;
+    console.log(`🔍 Fetching Tempo worklogs from ${dateFrom} to ${dateTo}...`);
+
+    while (hasMore) {
+      let url = `https://api.tempo.io/4/worklogs?from=${dateFrom}&to=${dateTo}&limit=${limit}&offset=${offset}`;
+
+      if (worker) {
+        url += `&worker=${worker}`;
+      }
+
+      console.log(`📄 Fetching page: offset=${offset}, limit=${limit}`);
+      const data = await makeTempoRequest(url, settings);
+
+      const worklogs = data.results || [];
+      const metadata = data.metadata || {};
+
+      if (worklogs.length > 0) {
+        allWorklogs = allWorklogs.concat(worklogs);
+        offset += worklogs.length;
+
+        totalCount = metadata.count || totalCount;
+        hasMore = offset < totalCount && worklogs.length === limit;
+
+        console.log(
+          `📊 Fetched ${worklogs.length} worklogs (total so far: ${allWorklogs.length}/${totalCount})`
+        );
+      } else {
+        hasMore = false;
+      }
+
+      if (offset > CONFIG.TEMPO.MAX_RECORDS) {
+        console.warn(
+          `⚠️ Reached safety limit of ${CONFIG.TEMPO.MAX_RECORDS} worklogs, stopping pagination`
+        );
+        break;
+      }
     }
 
-    const data = await makeTempoRequest(url, settings);
+    console.log(`✅ Fetched ${allWorklogs.length} total worklogs from Tempo`);
 
     return {
       success: true,
-      worklogs: data.results || data,
-      total: data.metadata?.count || (data.results ? data.results.length : 0),
+      worklogs: allWorklogs,
+      total: allWorklogs.length,
+      totalFromAPI: totalCount,
     };
   } catch (error) {
+    console.error("❌ Error fetching Tempo worklogs:", error);
     return {
       success: false,
       error: error.message,
@@ -140,11 +189,15 @@ export async function getWorklogsForMonth(
     const result = await getWorklogs(startDate, endDate, settings, worker);
 
     if (result.success) {
+      const worklogs = result.worklogs.filter(
+        (worklog) => worklog.author.accountId !== ANONYMOUS_ID
+      );
+
       // Group worklogs by date for easier processing
       const worklogsByDate = {};
       let totalHours = 0;
 
-      result.worklogs.forEach((worklog) => {
+      worklogs.forEach((worklog) => {
         const date = worklog.startDate;
         if (!worklogsByDate[date]) {
           worklogsByDate[date] = [];
@@ -155,7 +208,7 @@ export async function getWorklogsForMonth(
 
       return {
         success: true,
-        worklogs: result.worklogs,
+        worklogs,
         worklogsByDate,
         totalHours: Math.round(totalHours * 100) / 100, // Round to 2 decimal places
         period: {
@@ -184,10 +237,106 @@ export async function getWorklogsForMonth(
  * @param {Object} settings - Tempo settings
  * @returns {Promise<Object>} Promise that resolves with current user's monthly worklogs
  */
-export async function getCurrentUserWorklogsForMonth(year, month, settings) {
+export async function getCurrentUserWorklogsForMonth(
+  year,
+  month,
+  settings,
+  jiraSettings = null
+) {
   try {
     // Get all worklogs for the month (API returns only user's own worklogs by default)
-    return await getWorklogsForMonth(year, month, settings);
+    const result = await getWorklogsForMonth(year, month, settings);
+
+    if (!result.success || !result.worklogs) {
+      return result;
+    }
+
+    // Collect unique Jira issue IDs from worklogs
+    const jiraIssueIds = new Set();
+    result.worklogs.forEach((worklog) => {
+      if (worklog.issue?.id) {
+        jiraIssueIds.add(worklog.issue.id);
+      }
+    });
+
+    console.log(`🔍 Found ${jiraIssueIds.size} unique Jira issues in worklogs`);
+
+    console.log({ jiraIssueIds, jiraSettings });
+
+    // Fetch Jira issue details if Jira settings are provided
+    let jiraIssues = {};
+    if (jiraSettings && jiraIssueIds.size > 0) {
+      try {
+        console.log(`🔍 Fetching Jira issue details...`);
+
+        // Fetch all issues in parallel
+        const issuePromises = Array.from(jiraIssueIds).map(async (issueId) => {
+          try {
+            const issue = await JiraRestAPI.getIssue(issueId, jiraSettings);
+            return { id: issueId, issue };
+          } catch (error) {
+            console.warn(
+              `⚠️ Failed to fetch Jira issue ${issueId}:`,
+              error.message
+            );
+            return { id: issueId, issue: null };
+          }
+        });
+
+        const issueResults = await Promise.all(issuePromises);
+
+        // Build jiraIssues map
+        issueResults.forEach(({ id, issue }) => {
+          if (issue) {
+            jiraIssues[id] = issue.issue;
+          }
+        });
+
+        console.log(
+          `✅ Successfully fetched ${
+            Object.keys(jiraIssues).length
+          } Jira issues`
+        );
+      } catch (error) {
+        console.error(`❌ Error fetching Jira issues:`, error);
+      }
+    }
+
+    // Embed Jira data directly into worklogs
+    const enhancedWorklogs = result.worklogs.map((worklog) => {
+      const jiraIssue = jiraIssues[worklog.issue?.id];
+
+      console.log({ worklog, jiraIssue });
+
+      return {
+        ...worklog,
+        jira: jiraIssue
+          ? {
+              code: jiraIssue.key,
+              url: `${jiraSettings?.url}/browse/${jiraIssue.key}`,
+            }
+          : null,
+      };
+    });
+
+    console.log({ enhancedWorklogs });
+
+    // Update worklogsByDate with enhanced worklogs
+    const worklogsByDate = {};
+    enhancedWorklogs.forEach((worklog) => {
+      const date = worklog.startDate;
+      if (!worklogsByDate[date]) {
+        worklogsByDate[date] = [];
+      }
+      worklogsByDate[date].push(worklog);
+    });
+
+    // Return only the result without separate jiraIssues
+    return {
+      ...result,
+      worklogs: enhancedWorklogs,
+      worklogsByDate,
+    };
   } catch (error) {
     return {
       success: false,

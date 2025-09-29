@@ -28,8 +28,16 @@
   "host_permissions": ["*://*/*"],
   "content_scripts": [
     {
-      "matches": ["*://*.atlassian.net/browse/*", "*://*/jira/browse/*"],
-      "js": ["js/content/jira-integration.js"],
+      "matches": [
+        "*://*.atlassian.net/browse/*",
+        "*://*/jira/browse/*",
+        "*://*/jira/software/*/boards/*"
+      ],
+      "js": [
+        "js/utils/dom-utils.js",
+        "js/utils/url-watcher.js",
+        "js/content/jira-integration.js"
+      ],
       "css": ["css/jira-integration.css"],
       "run_at": "document_end"
     }
@@ -37,5 +45,11 @@
   "background": {
     "service_worker": "js/background.js",
     "type": "module"
-  }
+  },
+  "web_accessible_resources": [
+    {
+      "resources": ["images/icons/*.svg", "js/utils/*.js"],
+      "matches": ["*://*/*"]
+    }
+  ]
 }

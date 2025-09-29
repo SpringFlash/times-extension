@@ -95,8 +95,10 @@ export class Storage {
   static async getJiraSettings() {
     return await this.get(CONFIG.STORAGE.JIRA_SETTINGS, {
       url: "",
-      linkedProject: "",
+      email: "",
+      apiToken: "",
       enabled: false,
+      defaultProject: "",
     });
   }
 
@@ -146,6 +148,90 @@ export class Storage {
    */
   static async setTimeEntries(entries) {
     return await this.set(CONFIG.STORAGE.TIME_ENTRIES, entries);
+  }
+
+  /**
+   * Get JIRA project mappings
+   * @returns {Promise<Array>} - Array of JIRA URL to Redmine project mappings
+   */
+  static async getJiraProjectMappings() {
+    return await this.get(CONFIG.STORAGE.JIRA_PROJECT_MAPPINGS, []);
+  }
+
+  /**
+   * Set JIRA project mappings
+   * @param {Array} mappings - Array of mappings {jiraUrl, redmineProjectId, description}
+   * @returns {Promise<boolean>} - Success status
+   */
+  static async setJiraProjectMappings(mappings) {
+    return await this.set(CONFIG.STORAGE.JIRA_PROJECT_MAPPINGS, mappings);
+  }
+
+  /**
+   * Add JIRA project mapping
+   * @param {Object} mapping - Mapping object {jiraUrl, redmineProjectId, description}
+   * @returns {Promise<boolean>} - Success status
+   */
+  static async addJiraProjectMapping(mapping) {
+    const mappings = await this.getJiraProjectMappings();
+    mappings.push({
+      id: Date.now().toString(),
+      jiraUrl: mapping.jiraUrl,
+      redmineProjectId: mapping.redmineProjectId,
+      description: mapping.description || "",
+      createdAt: new Date().toISOString(),
+    });
+    return await this.setJiraProjectMappings(mappings);
+  }
+
+  /**
+   * Update JIRA project mapping
+   * @param {string} id - Mapping ID
+   * @param {Object} updates - Updates to apply
+   * @returns {Promise<boolean>} - Success status
+   */
+  static async updateJiraProjectMapping(id, updates) {
+    const mappings = await this.getJiraProjectMappings();
+    const index = mappings.findIndex((m) => m.id === id);
+    if (index !== -1) {
+      mappings[index] = {
+        ...mappings[index],
+        ...updates,
+        updatedAt: new Date().toISOString(),
+      };
+      return await this.setJiraProjectMappings(mappings);
+    }
+    return false;
+  }
+
+  /**
+   * Remove JIRA project mapping
+   * @param {string} id - Mapping ID
+   * @returns {Promise<boolean>} - Success status
+   */
+  static async removeJiraProjectMapping(id) {
+    const mappings = await this.getJiraProjectMappings();
+    const filtered = mappings.filter((m) => m.id !== id);
+    return await this.setJiraProjectMappings(filtered);
+  }
+
+  /**
+   * Find Redmine project ID by JIRA URL
+   * @param {string} jiraUrl - JIRA URL to match
+   * @returns {Promise<string|null>} - Redmine project ID or null if not found
+   */
+  static async findRedmineProjectByJiraUrl(jiraUrl) {
+    const mappings = await this.getJiraProjectMappings();
+    const normalizedUrl = jiraUrl.toLowerCase().replace(/\/$/, "");
+
+    const mapping = mappings.find((m) => {
+      const mappingUrl = m.jiraUrl.toLowerCase().replace(/\/$/, "");
+      return (
+        normalizedUrl.includes(mappingUrl) || mappingUrl.includes(normalizedUrl)
+      );
+    });
+
+    return mapping ? mapping.redmineProjectId : null;
   }
 }
 

@@ -189,28 +189,26 @@ export async function createIssue(issueData, settings) {
     const userData = await getCurrentUser(settings);
     const currentUserId = userData.user.id;
 
+    const {
+      projectId,
+      subject,
+      description = "",
+      jiraPriority,
+      jiraStatus,
+    } = issueData;
+
     // Map Jira priority to Redmine priority
-    let priorityId = CONFIG.REDMINE.DEFAULT_PRIORITY_ID; // Default to Medium
-    if (issueData.jiraPriority) {
+    let priorityId = CONFIG.REDMINE.DEFAULT_PRIORITY_ID;
+    if (jiraPriority) {
       priorityId =
-        CONFIG.PRIORITY_MAP[issueData.jiraPriority] ||
-        CONFIG.REDMINE.DEFAULT_PRIORITY_ID;
+        CONFIG.PRIORITY_MAP[jiraPriority] || CONFIG.REDMINE.DEFAULT_PRIORITY_ID;
     }
 
     // Map Jira status to Redmine status
-    let statusId = CONFIG.REDMINE.DEFAULT_STATUS_ID; // Default to New
-    if (issueData.jiraStatus) {
-      const statusMap = {
-        "To Do": 1, // New
-        "In Progress": 2, // In Progress
-        Done: 3, // Resolved
-        Closed: 5, // Closed
-        Open: 1, // New
-        Resolved: 3, // Resolved
-        Reopened: 2, // In Progress
-      };
+    let statusId = CONFIG.REDMINE.DEFAULT_STATUS_ID;
+    if (jiraStatus) {
       statusId =
-        statusMap[issueData.jiraStatus] || CONFIG.REDMINE.DEFAULT_STATUS_ID;
+        CONFIG.STATUS_MAP[jiraStatus] || CONFIG.REDMINE.DEFAULT_STATUS_ID;
     }
 
     console.log("🎫 Redmine: Issue data:", issueData);
@@ -225,9 +223,9 @@ export async function createIssue(issueData, settings) {
     const url = `${sanitizeUrl(settings.url)}/issues.json`;
     const payload = {
       issue: {
-        project_id: parseInt(issueData.projectId),
-        subject: issueData.subject,
-        description: issueData.description || "",
+        project_id: parseInt(projectId),
+        subject,
+        description,
         tracker_id: CONFIG.REDMINE.DEFAULT_TRACKER_ID,
         status_id: statusId,
         priority_id: priorityId,
@@ -327,6 +325,10 @@ export async function fetchTimeEntries(startDate, endDate, settings) {
     const userData = await getCurrentUser(settings);
     const currentUserId = userData.user.id;
 
+    console.log(
+      `🔍 Fetching Redmine time entries from ${startDate} to ${endDate} for user ${currentUserId}...`
+    );
+
     // Fetch time entries for the current user within the date range
     let allTimeEntries = [];
     let offset = 0;
@@ -337,28 +339,162 @@ export async function fetchTimeEntries(startDate, endDate, settings) {
       const url = `${sanitizeUrl(
         settings.url
       )}/time_entries.json?user_id=${currentUserId}&from=${startDate}&to=${endDate}&limit=${limit}&offset=${offset}`;
+
+      console.log(`📄 Fetching page: offset=${offset}, limit=${limit}`);
       const data = await makeRedmineRequest(url, settings);
 
       if (data.time_entries && data.time_entries.length > 0) {
         allTimeEntries = allTimeEntries.concat(data.time_entries);
         offset += limit;
         hasMore = data.time_entries.length === limit;
+
+        console.log(
+          `📊 Fetched ${data.time_entries.length} time entries (total so far: ${allTimeEntries.length})`
+        );
       } else {
         hasMore = false;
       }
+
+      // Safety check to prevent infinite loops
+      if (offset > CONFIG.REDMINE.MAX_RECORDS) {
+        console.warn(
+          `⚠️ Reached safety limit of ${CONFIG.REDMINE.MAX_RECORDS} time entries, stopping pagination`
+        );
+        break;
+      }
     }
+
+    console.log(
+      `✅ Fetched ${allTimeEntries.length} total time entries from Redmine`
+    );
+
+    // Collect unique issue IDs from time entries
+    const issueIds = new Set();
+    allTimeEntries.forEach((entry) => {
+      if (entry.issue?.id) {
+        issueIds.add(entry.issue.id);
+      }
+    });
+
+    console.log(
+      `🔍 Found ${issueIds.size} unique Redmine issues in time entries`
+    );
+
+    // Fetch issue details to get descriptions with Jira links
+    let redmineIssues = {};
+    if (issueIds.size > 0) {
+      try {
+        console.log(`🔍 Fetching Redmine issue details...`);
+
+        // Fetch all issues in parallel
+        const issuePromises = Array.from(issueIds).map(async (issueId) => {
+          try {
+            const result = await getIssue(issueId, settings);
+            if (result.success) {
+              // Extract Jira keys from issue description
+              const jiraKeys = extractJiraKeysFromText(
+                result.issue.description || ""
+              );
+              return {
+                id: issueId,
+                issue: {
+                  ...result.issue,
+                  jiraKeys,
+                },
+              };
+            }
+            return { id: issueId, issue: null };
+          } catch (error) {
+            console.warn(
+              `⚠️ Failed to fetch Redmine issue ${issueId}:`,
+              error.message
+            );
+            return { id: issueId, issue: null };
+          }
+        });
+
+        const issueResults = await Promise.all(issuePromises);
+
+        // Build redmineIssues map
+        issueResults.forEach(({ id, issue }) => {
+          if (issue) {
+            redmineIssues[id] = issue;
+          }
+        });
+
+        console.log(
+          `✅ Successfully fetched ${
+            Object.keys(redmineIssues).length
+          } Redmine issues`
+        );
+
+        // Log found Jira keys
+        const allJiraKeys = Object.values(redmineIssues).flatMap(
+          (issue) => issue.jiraKeys || []
+        );
+        console.log(
+          `🔍 Found ${allJiraKeys.length} Jira key references in Redmine issues:`,
+          allJiraKeys
+        );
+      } catch (error) {
+        console.error(`❌ Error fetching Redmine issues:`, error);
+      }
+    }
+
+    // Embed Jira data directly into time entries
+    const enhancedTimeEntries = allTimeEntries.map((entry) => {
+      const redmineIssue = redmineIssues[entry.issue?.id];
+      let jiraData = null;
+
+      if (
+        redmineIssue &&
+        redmineIssue.jiraKeys &&
+        redmineIssue.jiraKeys.length > 0
+      ) {
+        // Take the first Jira key found in the description
+        const jiraCode = redmineIssue.jiraKeys[0];
+        jiraData = {
+          code: jiraCode,
+          url: `https://xiomautomotive.atlassian.net/browse/${jiraCode}`,
+        };
+      }
+
+      return {
+        ...entry,
+        // Add embedded Jira data for easier comparison
+        jira: jiraData,
+      };
+    });
 
     return {
       success: true,
-      timeEntries: allTimeEntries,
-      total: allTimeEntries.length,
+      timeEntries: enhancedTimeEntries,
+      total: enhancedTimeEntries.length,
     };
   } catch (error) {
+    console.error("❌ Error fetching Redmine time entries:", error);
     return {
       success: false,
       error: error.message,
     };
   }
+}
+
+/**
+ * Extract Jira keys from text (e.g., WAD-1234, PROJ-567)
+ * @param {string} text - Text to search for Jira keys
+ * @returns {Array<string>} Array of found Jira keys
+ */
+function extractJiraKeysFromText(text) {
+  if (!text || typeof text !== "string") {
+    return [];
+  }
+
+  // Match Jira key pattern: PROJECT-NUMBER (e.g., WAD-1234, PROJ-567)
+  const jiraKeyRegex = /\b[A-Z][A-Z0-9]*-\d+\b/g;
+  const matches = text.match(jiraKeyRegex);
+
+  return matches ? [...new Set(matches)] : []; // Remove duplicates
 }
 
 /**

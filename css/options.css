@@ -704,6 +704,8 @@ button:hover {
 
 .modal-body {
   padding: 30px;
+  max-height: 75vh;
+  overflow: auto;
 }
 
 .modal-footer {
